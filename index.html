@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus IPTV - Premium Live Streaming Platform</title>
+    <meta name="description" content="Stream your favorite live TV channels, sports, movies, and news with Nexus IPTV. Premium UI, high-quality streams, and seamless playback.">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        darkCard: 'rgba(30, 41, 59, 0.7)',
+                        accentBlue: '#3b82f6',
+                        accentPurple: '#8b5cf6',
+                    },
+                    backdropBlur: {
+                        xs: '2px',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        /* Custom Glassmorphism styling */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Hide scrollbar for category list slider */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden min-h-screen flex flex-col pb-16 md:pb-0">
+
+    <div id="loading-screen" class="fixed inset-0 z-50 bg-darkBg flex flex-col justify-center items-center transition-opacity duration-500">
+        <div class="relative flex items-center justify-center">
+            <div class="w-20 h-20 border-4 border-dashed border-blue-500 rounded-full animate-spin"></div>
+            <div class="absolute text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">N</div>
+        </div>
+        <p class="mt-4 text-slate-400 tracking-wider text-sm animate-pulse">LOADING NEXUS IPTV...</p>
+    </div>
+
+    <header class="sticky top-0 z-40 w-full glass-panel border-b border-slate-800">
+        <div class="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between gap-4">
+            
+            <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+                <div class="h-9 w-9 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-play text-white text-sm"></i>
+                </div>
+                <span class="text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-blue-400">
+                    NEXUS<span class="text-blue-500 font-medium text-sm ml-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">IPTV</span>
+                </span>
+            </div>
+
+            <div class="hidden md:flex flex-1 max-w-md relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="search-input" placeholder="Search channels, categories, countries..." 
+                    class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl pl-10 pr-4 py-1.5 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-500 text-slate-200">
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="hidden lg:flex flex-col text-right">
+                    <span id="live-clock" class="text-sm font-semibold text-slate-300">00:00:00 PM</span>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider">System Time</span>
+                </div>
+                <div class="glass-panel px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="channel-counter" class="text-xs font-medium text-slate-300">0 Channels Live</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 max-w-[1600px] w-full mx-auto relative items-stretch">
+        
+        <aside class="hidden md:flex flex-col w-64 shrink-0 border-r border-slate-800/60 p-4 space-y-6">
+            <div>
+                <p class="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Navigation</p>
+                <nav class="space-y-1" id="desktop-nav">
+                    <button data-filter="all" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium text-sm transition-all shadow-md shadow-blue-600/10">
+                        <span class="flex items-center gap-3"><i class="fa-solid fa-globe w-4"></i>All Channels</span>
+                        <span class="text-xs bg-black/20 px-1.5 py-0.5 rounded" id="count-all">0</span>
+                    </button>
+                    <button data-filter="Favorites" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-medium text-sm transition-all">
+                        <span class="flex items-center gap-3"><i class="fa-solid fa-star text-amber-500 w-4"></i>Favorites</span>
+                        <span class="text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-400" id="count-fav">0</span>
+                    </button>
+                </nav>
+            </div>
+
+            <div>
+                <p class="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Categories</p>
+                <div class="space-y-1 max-h-[350px] overflow-y-auto pr-1" id="category-sidebar-list">
+                    </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-800/80">
+                <p class="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Country Filter</p>
+                <select id="country-filter" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                    <option value="all">All Countries</option>
+                </select>
+            </div>
+        </aside>
+
+        <main class="flex-1 min-w-0 p-4 md:p-6 space-y-6">
+
+            <div class="block md:hidden w-full relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="search-input-mobile" placeholder="Search channels..." 
+                    class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 text-slate-200">
+            </div>
+
+            <section id="player-section" class="hidden transition-all duration-300">
+                <div class="glass-panel p-3 rounded-2xl border border-slate-800 shadow-2xl">
+                    <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black group shadow-inner">
+                        
+                        <video id="video-element" class="w-full h-full object-contain" autoplay playsinline></video>
+
+                        <div id="player-loader" class="absolute inset-0 bg-slate-950/80 flex items-center justify-center opacity-0 pointer-events-none transition-opacity">
+                            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+
+                        <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div class="flex items-center justify-between text-xs text-slate-300">
+                                <div class="flex items-center gap-2">
+                                    <span class="h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                                    <span id="player-channel-name" class="font-bold tracking-wide">Live Stream</span>
+                                </div>
+                                <span id="player-status" class="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 text-[10px] uppercase font-bold">HLS Live</span>
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <button id="play-btn" class="text-white hover:text-blue-400 transition-colors"><i class="fa-solid fa-pause text-lg"></i></button>
+                                    
+                                    <div class="flex items-center gap-2 group/vol">
+                                        <button id="mute-btn" class="text-white hover:text-blue-400 transition-colors"><i class="fa-solid fa-volume-high text-sm"></i></button>
+                                        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" class="w-16 accent-blue-500 h-1 rounded-lg cursor-pointer appearance-none bg-slate-700">
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-3">
+                                    <select id="quality-selector" class="bg-slate-900/90 text-slate-300 border border-slate-700 text-[11px] rounded px-2 py-1 focus:outline-none cursor-pointer">
+                                        <option value="auto">Auto Quality</option>
+                                    </select>
+                                    <button id="fullscreen-btn" class="text-white hover:text-blue-400 transition-colors"><i class="fa-solid fa-expand text-sm"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 flex items-center justify-between px-1">
+                        <div class="flex items-center gap-3">
+                            <img id="player-channel-logo" src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=80" alt="Channel Logo" class="h-10 w-10 rounded-lg object-contain bg-slate-900 border border-slate-800">
+                            <div>
+                                <h3 id="player-title" class="text-base font-bold text-slate-100">Channel Name</h3>
+                                <p id="player-meta" class="text-xs text-slate-400">Category • Country</p>
+                            </div>
+                        </div>
+                        <button id="player-fav-toggle" class="h-9 w-9 rounded-xl border border-slate-800 flex items-center justify-center text-slate-400 hover:text-amber-400 transition-colors">
+                            <i class="fa-solid fa-star"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="hero-banner" class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-slate-900 to-blue-950 border border-slate-800 p-6 md:p-10 flex flex-col justify-center min-h-[220px] md:min-h-[280px]">
+                <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_45%)]"></div>
+                <div class="relative z-10 max-w-xl space-y-3">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase tracking-wider animate-pulse">
+                        <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span> Live Entertainment
+                    </span>
+                    <h2 id="featured-title" class="text-2xl md:text-4xl font-extrabold text-white leading-tight tracking-tight">Experience Premium IPTV Streaming</h2>
+                    <p id="featured-desc" class="text-slate-300 text-xs md:text-sm max-w-md">Access hundreds of fast, clean global channels in HD. Filter instantly by sport, news, movies or regions.</p>
+                    <div class="pt-2">
+                        <button id="hero-play-btn" class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5">
+                            <i class="fa-solid fa-play"></i> Watch Featured Stream
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <div class="block md:hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Browse Categories</p>
+                </div>
+                <div id="mobile-category-slider" class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    </div>
+            </div>
+
+            <section class="space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                    <h2 id="section-view-title" class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        All Live Channels
+                    </h2>
+                    <span id="result-counter" class="text-xs text-slate-400 font-medium">Showing 0 channels</span>
+                </div>
+
+                <div id="channels-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <script>
+                        document.write(Array(8).fill(0).map(() => `
+                            <div class="glass-card rounded-2xl p-3 flex flex-col gap-3 animate-pulse">
+                                <div class="w-full aspect-video bg-slate-800/60 rounded-xl"></div>
+                                <div class="space-y-2">
+                                    <div class="h-4 bg-slate-800/60 rounded w-2/3"></div>
+                                    <div class="h-3 bg-slate-800/40 rounded w-1/2"></div>
+                                </div>
+                            </div>
+                        `).join(''));
+                    </script>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <nav class="md:hidden fixed bottom-0 inset-x-0 glass-panel border-t border-slate-800 z-40 grid grid-cols-4 text-center h-16">
+        <button data-filter="all" class="mobile-nav-btn flex flex-col justify-center items-center gap-1 text-blue-500 font-medium">
+            <i class="fa-solid fa-tv text-lg"></i>
+            <span class="text-[10px]">Home</span>
+        </button>
+        <button data-filter="Sports" class="mobile-nav-btn flex flex-col justify-center items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-dumbbell text-lg"></i>
+            <span class="text-[10px]">Sports</span>
+        </button>
+        <button data-filter="Movies" class="mobile-nav-btn flex flex-col justify-center items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-film text-lg"></i>
+            <span class="text-[10px]">Movies</span>
+        </button>
+        <button data-filter="Favorites" class="mobile-nav-btn flex flex-col justify-center items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-star text-lg"></i>
+            <span class="text-[10px]">Favorites</span>
+        </button>
+    </nav>
+
+    <footer class="mt-auto border-t border-slate-900 bg-slate-950/60 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-[1600px] mx-auto px-4 space-y-2">
+            <p class="font-semibold text-slate-400">Nexus IPTV — Premium Streaming Experience</p>
+            <p>&copy; 2026 Nexus IPTV. All rights reserved. Built using adaptive HLS architecture.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Core Reactive App State
+        const state = {
+            allChannels: [],
+            filteredChannels: [],
+            favorites: JSON.parse(localStorage.getItem('nexus_iptv_favs')) || [],
+            activeFilter: 'all', // can be 'all', 'Favorites', or a specific category name
+            selectedCountry: 'all',
+            searchQuery: '',
+            currentPlayingChannel: null
+        };
+
+        // DOM elements cache
+        const dom = {
+            loadingScreen: document.getElementById('loading-screen'),
+            channelsGrid: document.getElementById('channels-grid'),
+            channelCounter: document.getElementById('channel-counter'),
+            resultCounter: document.getElementById('result-counter'),
+            sectionViewTitle: document.getElementById('section-view-title'),
+            desktopNav: document.getElementById('desktop-nav'),
+            categorySidebarList: document.getElementById('category-sidebar-list'),
+            mobileCategorySlider: document.getElementById('mobile-category-slider'),
+            countryFilter: document.getElementById('country-filter'),
+            searchInput: document.getElementById('search-input'),
+            searchInputMobile: document.getElementById('search-input-mobile'),
+            liveClock: document.getElementById('live-clock'),
+            
+            // Video Player elements
+            playerSection: document.getElementById('player-section'),
+            video: document.getElementById('video-element'),
+            playerLoader: document.getElementById('player-loader'),
+            playBtn: document.getElementById('play-btn'),
+            muteBtn: document.getElementById('mute-btn'),
+            volumeSlider: document.getElementById('volume-slider'),
+            qualitySelector: document.getElementById('quality-selector'),
+            fullscreenBtn: document.getElementById('fullscreen-btn'),
+            playerChannelName: document.getElementById('player-channel-name'),
+            playerTitle: document.getElementById('player-title'),
+            playerMeta: document.getElementById('player-meta'),
+            playerChannelLogo: document.getElementById('player-channel-logo'),
+            playerFavToggle: document.getElementById('player-fav-toggle'),
+            heroPlayBtn: document.getElementById('hero-play-btn'),
+            heroBanner: document.getElementById('hero-banner')
+        };
+
+        let hlsInstance = null;
+
+        // Initialize Native App
+        window.addEventListener('DOMContentLoaded', () => {
+            initClock();
+            fetchChannels();
+            setupEventListeners();
+        });
+
+        // Dynamic System Clock ticking
+        function initClock() {
+            const updateClock = () => {
+                const now = new Date();
+                dom.liveClock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        // Fetch API Handler targeting RAW data source securely
+        async function fetchChannels() {
+            const rawUrl = "https://raw.githubusercontent.com/foridul422/IPTV-/main/channels.json";
+            try {
+                const response = await fetch(rawUrl);
+                if (!response.ok) throw new Error("Network invalid data schema response");
+                const data = await response.json();
+                
+                // Uniform data verification
+                state.allChannels = data.map((ch, idx) => ({
+                    id: ch.id || `ch-${idx}`,
+                    name: ch.name || 'Unknown Channel',
+                    logo: ch.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=150',
+                    url: ch.url,
+                    category: ch.category || 'General',
+                    country: ch.country || 'Global'
+                })).filter(ch => ch.url); // filter out channels missing streams
+
+                buildUIFilters();
+                applyFiltering();
+                setupHeroBanner();
+                
+                // Soft entry layout animation
+                setTimeout(() => {
+                    dom.loadingScreen.classList.add('opacity-0');
+                    setTimeout(() => dom.loadingScreen.remove(), 500);
+                }, 400);
+
+            } catch (error) {
+                console.error("Critical parsing layout error: ", error);
+                dom.channelsGrid.innerHTML = `
+                    <div class="col-span-full text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl text-red-500 mb-2"></i>
+                        <p class="font-bold text-white">Failed to load channels data</p>
+                        <p class="text-xs text-slate-500 mt-1">Please confirm structural validation rules or network path state.</p>
+                    </div>
+                `;
+                dom.loadingScreen.remove();
+            }
+        }
+
+        // Render Sidebar Navigation & Selection elements dynamically
+        function buildUIFilters() {
+            dom.channelCounter.textContent = `${state.allChannels.length} Channels Live`;
+            
+            // Extract distinct metadata
+            const categories = [...new Set(state.allChannels.map(ch => ch.category))].sort();
+            const countries = [...new Set(state.allChannels.map(ch => ch.country))].sort();
+
+            // Populate Desktop Sidebar categories
+            dom.categorySidebarList.innerHTML = categories.map(cat => {
+                const count = state.allChannels.filter(ch => ch.category === cat).length;
+                return `
+                    <button data-filter="${cat}" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 text-xs font-medium transition-all">
+                        <span class="flex items-center gap-2.5 truncate"><i class="fa-solid fa-hashtag text-slate-600 text-[10px]"></i>${cat}</span>
+                        <span class="text-[10px] bg-slate-900/80 px-1.5 py-0.5 rounded text-slate-500">${count}</span>
+                    </button>
+                `;
+            }).join('');
+
+            // Populate Mobile Category horizontal slider
+            dom.mobileCategorySlider.innerHTML = categories.map(cat => `
+                <button data-filter="${cat}" class="shrink-0 px-4 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-400 active:bg-blue-600 active:text-white transition-all">
+                    ${cat}
+                </button>
+            `).join('');
+
+            // Populate Country Filter Options Dropdown
+            countries.forEach(country => {
+                const opt = document.createElement('option');
+                opt.value = country;
+                opt.textContent = country;
+                dom.countryFilter.appendChild(opt);
+            });
+
+            updateSidebarCounters();
+        }
+
+        function updateSidebarCounters() {
+            document.getElementById('count-all').textContent = state.allChannels.length;
+            document.getElementById('count-fav').textContent = state.favorites.length;
+        }
+
+        // Event Listeners Pipeline Initialization
+        function setupEventListeners() {
+            // Search handlers
+            const handleSearch = (e) => {
+                state.searchQuery = e.target.value.toLowerCase();
+                applyFiltering();
+            };
+            dom.searchInput.addEventListener('input', handleSearch);
+            dom.searchInputMobile.addEventListener('input', handleSearch);
+
+            // Desktop Nav Filters click
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-filter]');
+                if (!btn) return;
+                
+                state.activeFilter = btn.getAttribute('data-filter');
+                
+                // Visual toggle classes update
+                document.querySelectorAll('[data-filter]').forEach(el => {
+                    el.classList.remove('bg-gradient-to-r', 'from-blue-600', 'to-blue-700', 'text-white', 'shadow-md', 'shadow-blue-600/10');
+                    if(el.tagName === 'BUTTON' && !el.classList.contains('mobile-nav-btn')) {
+                        el.classList.add('text-slate-400');
+                    }
+                });
+
+                btn.classList.add('bg-gradient-to-r', 'from-blue-600', 'to-blue-700', 'text-white');
+                btn.classList.remove('text-slate-400');
+
+                applyFiltering();
+            });
+
+            // Country Filter selector interaction
+            dom.countryFilter.addEventListener('change', (e) => {
+                state.selectedCountry = e.target.value;
+                applyFiltering();
+            });
+
+            // Core Custom Video Player controls interface wiring
+            dom.playBtn.addEventListener('click', () => {
+                if (dom.video.paused) {
+                    dom.video.play();
+                    dom.playBtn.innerHTML = '<i class="fa-solid fa-pause text-lg"></i>';
+                } else {
+                    dom.video.pause();
+                    dom.playBtn.innerHTML = '<i class="fa-solid fa-play text-lg"></i>';
+                }
+            });
+
+            dom.muteBtn.addEventListener('click', () => {
+                dom.video.muted = !dom.video.muted;
+                dom.muteBtn.innerHTML = dom.video.muted ? 
+                    '<i class="fa-solid fa-volume-xmark text-sm text-red-400"></i>' : 
+                    '<i class="fa-solid fa-volume-high text-sm"></i>';
+            });
+
+            dom.volumeSlider.addEventListener('input', (e) => {
+                dom.video.volume = e.target.value;
+                dom.video.muted = (e.target.value == 0);
+            });
+
+            dom.fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    dom.video.requestFullscreen().catch(err => alert(err.message));
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            dom.playerFavToggle.addEventListener('click', () => {
+                if(state.currentPlayingChannel) {
+                    toggleFavorite(state.currentPlayingChannel.id);
+                    updateFavBtnUI(state.currentPlayingChannel.id);
+                }
+            });
+        }
+
+        // Set up Hero Banner stream feature with random initialization assignment
+        function setupHeroBanner() {
+            if(state.allChannels.length === 0) return;
+            const featured = state.allChannels[Math.floor(Math.random() * Math.min(state.allChannels.length, 10))];
+            
+            document.getElementById('featured-title').textContent = featured.name;
+            document.getElementById('featured-desc').textContent = `Now Broadcasting live from ${featured.country}. Category categorized under ${featured.category}. Click stream below to instantly tune in live.`;
+            
+            dom.heroPlayBtn.onclick = () => {
+                initializePlayback(featured);
+            };
+        }
+
+        // Unified Filter pipeline architecture parsing 
+        function applyFiltering() {
+            state.filteredChannels = state.allChannels.filter(channel => {
+                // Category Filter Condition match
+                let matchesCategory = true;
+                if (state.activeFilter === 'Favorites') {
+                    matchesCategory = state.favorites.includes(channel.id);
+                } else if (state.activeFilter !== 'all') {
+                    matchesCategory = channel.category === state.activeFilter;
+                }
+
+                // Country condition match
+                const matchesCountry = (state.selectedCountry === 'all') || (channel.country === state.selectedCountry);
+                
+                // Search query matching
+                const matchesSearch = channel.name.toLowerCase().includes(state.searchQuery) || 
+                                      channel.category.toLowerCase().includes(state.searchQuery) ||
+                                      channel.country.toLowerCase().includes(state.searchQuery);
+
+                return matchesCategory && matchesCountry && matchesSearch;
+            });
+
+            renderGridCards();
+        }
+
+        // High Performance Virtual DOM element generation injector
+        function renderGridCards() {
+            dom.resultCounter.textContent = `Showing ${state.filteredChannels.length} channels`;
+            
+            // Render context section label string
+            if(state.activeFilter === 'all') dom.sectionViewTitle.innerHTML = `<i class="fa-solid fa-tv text-blue-500 text-sm"></i> All Channels`;
+            else if(state.activeFilter === 'Favorites') dom.sectionViewTitle.innerHTML = `<i class="fa-solid fa-star text-amber-500 text-sm"></i> Favorite Streams`;
+            else dom.sectionViewTitle.innerHTML = `<i class="fa-solid fa-hashtag text-blue-500 text-sm"></i> ${state.activeFilter}`;
+
+            if(state.filteredChannels.length === 0) {
+                dom.channelsGrid.innerHTML = `
+                    <div class="col-span-full text-center py-16 text-slate-500">
+                        <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block opacity-40"></i>
+                        No channels matched your selected filter arrays.
+                    </div>
+                `;
+                return;
+            }
+
+            dom.channelsGrid.innerHTML = state.filteredChannels.map(channel => {
+                const isFav = state.favorites.includes(channel.id);
+                return `
+                    <div class="glass-card rounded-2xl p-3 flex flex-col justify-between group relative cursor-pointer" onclick="handleCardClick(event, '${channel.id}')">
+                        <div class="relative w-full aspect-video bg-slate-950/80 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800/40 group-hover:border-slate-700/60 transition-colors">
+                            <img src="${channel.logo}" alt="${channel.name}" loading="lazy" class="max-h-16 max-w-[70%] object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] transition-transform duration-300 group-hover:scale-110" onerror="this.src='https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=150'">
+                            
+                            <div class="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none">
+                                <span class="bg-red-600/90 backdrop-blur-xs text-[9px] font-black tracking-widest text-white px-2 py-0.5 rounded-md flex items-center gap-1 uppercase">
+                                    <span class="h-1 w-1 bg-white rounded-full animate-ping"></span>Live
+                                </span>
+                                <span class="bg-slate-900/90 backdrop-blur-xs text-[9px] font-medium text-slate-300 px-1.5 py-0.5 rounded border border-slate-800">
+                                    ${channel.country}
+                                </span>
+                            </div>
+
+                            <div class="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                                <div class="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm transform scale-90 group-hover:scale-100 transition-transform duration-300 shadow-lg shadow-blue-500/40">
+                                    <i class="fa-solid fa-play ml-0.5"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <h4 class="text-xs font-bold text-slate-100 truncate group-hover:text-blue-400 transition-colors tracking-wide">${channel.name}</h4>
+                                <p class="text-[10px] text-slate-500 font-medium truncate mt-0.5">${channel.category}</p>
+                            </div>
+                            <button onclick="handleFavClick(event, '${channel.id}')" class="text-slate-600 hover:text-amber-400 p-1 transition-colors relative z-10">
+                                <i class="${isFav ? 'fa-solid fa-star text-amber-500' : 'fa-regular fa-star'} text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Router handler intercepting channel grid clicks explicitly vs heart favorite buttons
+        function handleCardClick(event, id) {
+            const match = state.allChannels.find(ch => ch.id === id);
+            if(match) initializePlayback(match);
+        }
+
+        function handleFavClick(event, id) {
+            event.stopPropagation(); // Block selection card trigger tracking
+            toggleFavorite(id);
+            applyFiltering();
+        }
+
+        // Core LocalStorage Favorites execution routine
+        function toggleFavorite(id) {
+            if (state.favorites.includes(id)) {
+                state.favorites = state.favorites.filter(favId => favId !== id);
+            } else {
+                state.favorites.push(id);
+            }
+            localStorage.setItem('nexus_iptv_favs', JSON.stringify(state.favorites));
+            updateSidebarCounters();
+            if(state.currentPlayingChannel && state.currentPlayingChannel.id === id) {
+                updateFavBtnUI(id);
+            }
+        }
+
+        function updateFavBtnUI(id) {
+            const isFav = state.favorites.includes(id);
+            dom.playerFavToggle.innerHTML = `<i class="${isFav ? 'fa-solid fa-star text-amber-500' : 'fa-regular fa-star'}"></i>`;
+        }
+
+        // Native HLS Execution Engine implementation
+        function initializePlayback(channel) {
+            state.currentPlayingChannel = channel;
+            
+            // View transition animation mechanics scroll to view smoothly
+            dom.playerSection.classList.remove('hidden');
+            dom.playerSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // Feed details into UI elements instantly
+            dom.playerChannelName.textContent = channel.name;
+            dom.playerTitle.textContent = channel.name;
+            dom.playerMeta.textContent = `${channel.category} • ${channel.country}`;
+            dom.playerChannelLogo.src = channel.logo;
+            updateFavBtnUI(channel.id);
+
+            dom.playerLoader.classList.remove('opacity-0');
+            dom.playBtn.innerHTML = '<i class="fa-solid fa-pause text-lg"></i>';
+
+            // Clean up old streams explicitly if active
+            if (hlsInstance) {
+                hlsInstance.destroy();
+            }
+
+            // Route execution dependent on stream container profiles compatibility Matrix
+            if (Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    maxMaxBufferLength: 10,
+                    enableWorker: true,
+                    lowLatencyMode: true
+                });
+                
+                hlsInstance.loadSource(channel.url);
+                hlsInstance.attachMedia(dom.video);
+                
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                    dom.video.play();
+                    dom.playerLoader.classList.add('opacity-0');
+                    populateQualityLevels();
+                });
+
+                hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.error("Fatal network error detected, attempting buffer recovery...");
+                                hlsInstance.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.error("Fatal media decoding error detected, executing stall clearance bypass...");
+                                hlsInstance.recoverMediaError();
+                                break;
+                            default:
+                                console.error("Unrecoverable playback error matrix reached.");
+                                destroyPlaybackEngineWithError();
+                                break;
+                        }
+                    }
+                });
+            }
+            // Fallback for native Safari engine layers rendering raw HLS natively
+            else if (dom.video.canPlayType('application/vnd.apple.mpegurl')) {
+                dom.video.src = channel.url;
+                dom.video.addEventListener('loadedmetadata', () => {
+                    dom.video.play();
+                    dom.playerLoader.classList.add('opacity-0');
+                });
+            } else {
+                dom.playerLoader.classList.add('opacity-0');
+                alert("Your browser does not possess the structural media codecs required to decode HLS .m3u8 live streams.");
+            }
+        }
+
+        function populateQualityLevels() {
+            if (!hlsInstance || hlsInstance.levels.length === 0) return;
+            
+            dom.qualitySelector.innerHTML = '<option value="auto">Auto Quality</option>';
+            hlsInstance.levels.forEach((level, index) => {
+                const name = level.height ? `${level.height}p` : `Level ${index}`;
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = name;
+                dom.qualitySelector.appendChild(opt);
+            });
+
+            dom.qualitySelector.onchange = (e) => {
+                if(e.target.value === 'auto') {
+                    hlsInstance.currentLevel = -1; // Auto level controller trigger flag
+                } else {
+                    hlsInstance.currentLevel = parseInt(e.target.value);
+                }
+            };
+        }
+
+        function destroyPlaybackEngineWithError() {
+            dom.playerLoader.classList.add('opacity-0');
+            dom.playerTitle.textContent = "Stream Currently Offline / Unavailable";
+            dom.playerMeta.textContent = "Codec mismatch or cross-origin restrictions blocking active stream resolution loop.";
+            if(hlsInstance) hlsInstance.destroy();
+        }
+    </script>
+</body>
+</html>
